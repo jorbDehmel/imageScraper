@@ -10,7 +10,8 @@ def is_image_link(url: str, timeout=1) -> bool:
     global image_formats
     try:
         is_image = r.get(url, timeout=timeout).headers['content-type'] in image_formats
-    except r.exceptions.RequestException:
+    except Exception as e:
+        print(e)
         is_image = False
     return is_image
 
@@ -36,6 +37,7 @@ def scrape_single_image(url: str, out_folder: str, timeout) -> None:
     if '.' not in name:
         name += '.jpg'
 
+    print(out_folder)
     with open(out_folder + name, 'wb') as file:
         copyfileobj(image.raw, file)
 
@@ -71,7 +73,11 @@ def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
             scrape_single_image(link, out_folder, timeout)
         elif depth != 0:
             print('Scraping non-image link', link)
-            count += int(get_images_from_url(link, out_folder, timeout, depth - 1))
+
+            try:
+                count += int(get_images_from_url(link, out_folder, timeout, depth - 1))
+            except Exception as e:
+                print(e)
 
     return count
 
@@ -79,6 +85,7 @@ class ImageScraper:
     def __init__(self, link='https://www.google.com/', output_folder='', timeout=1):
         self.link, self.output_folder, self.timeout = link, output_folder, timeout
 
+        print(os.getcwd())
         if output_folder == '':
             if not os.path.exists('output'):
                 os.makedirs('output')
@@ -91,6 +98,7 @@ class ImageScraper:
         self.root.mainloop()
     
     def scrape(self, depth=0):
+        print(self.output_folder)
         self.counter = get_images_from_url(self.link, self.output_folder, self.timeout, depth)
         return
     
