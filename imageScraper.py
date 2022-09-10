@@ -41,7 +41,7 @@ def scrape_single_image(url: str, out_folder: str, timeout) -> None:
     with open(out_folder + name, 'wb') as file:
         copyfileobj(image.raw, file)
 
-def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
+def get_images_from_url(url: str, out_folder: str, timeout: int, depth: bool, more_links=True) -> int:
     # Failsafe
     if is_image_link(url):
         print('Link is image link.')
@@ -61,6 +61,10 @@ def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
         links = re.findall(r'(?<==")(?:https?:)?//[^ ]*?\.(?:png|jpg|jpeg)(?=")', html)
     else:
         links = re.findall(r'(?<==")(?:https?:)?//[^ ]*?(?=")', html)
+    
+    if more_links:
+        links += re.findall(r'(?<=src=").*?(?=")', html)
+
     print('Found: ', links)
 
     # Test each link for image-hood
@@ -93,6 +97,7 @@ class ImageScraper:
 
         self.counter = 0
         self.root = tk.Tk()
+        self.root.geometry('250x220')
         self.root.title('Image Scraper')
         self._page1()
         self.root.mainloop()
@@ -114,6 +119,8 @@ class ImageScraper:
     def _go(self, link_textbox: tk.Text, depth_textbox: tk.Text):
         self.link = link_textbox.get('1.0', tk.END)
         depth = int(depth_textbox.get('1.0', tk.END))
+        self._page2()
+
         self.scrape(depth=depth)
 
         self._page1()
@@ -137,6 +144,15 @@ class ImageScraper:
         tk.Button(self.root, text='Select output folder', command=self._select_folder).pack()
         tk.Button(self.root, text='Go', command=lambda: self._go(link_textbox, depth_textbox)).pack()
 
+        tk.Button(self.root, text='Quit', command=self.root.destroy).pack()
+
+        return
+    
+    def _page2(self):
+        self.clear()
+
+        tk.Label(self.root, text='Working...').pack()
+        tk.Button(self.root, text='Cancel', command=self._page1).pack()
         tk.Button(self.root, text='Quit', command=self.root.destroy).pack()
 
         return
