@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog as fd
 from shutil import copyfileobj
 import os
+import threading
 
 image_formats = ('image/png', 'image/jpg', 'image/jpeg')
 def is_image_link(url: str, timeout=1) -> bool:
@@ -41,52 +42,8 @@ def scrape_single_image(url: str, out_folder: str, timeout) -> None:
     with open(out_folder + name, 'wb') as file:
         copyfileobj(image.raw, file)
 
-def get_images_from_url(url: str, out_folder: str, timeout: int, depth: bool, more_links=True) -> int:
-    # Failsafe
-    if is_image_link(url):
-        print('Link is image link.')
-        scrape_single_image(url, out_folder, timeout)
-        return
-
-    # Get url html
-    try:
-        html = r.get(url, stream=True, timeout=timeout).text
-    except r.exceptions.RequestException:
-        print('Connection failed.')
-        return
-
-    # Find all links within html
-    print('Searching for links...')
-    if depth == 0:
-        links = re.findall(r'(?<==")(?:https?:)?//[^ ]*?\.(?:png|jpg|jpeg)(?=")', html)
-    else:
-        links = re.findall(r'(?<==")(?:https?:)?//[^ ]*?(?=")', html)
-    
-    if more_links:
-        links += re.findall(r'(?<=src=").*?(?=")', html)
-
-    print('Found: ', links)
-
-    # Test each link for image-hood
-    count = len(links)
-    links.sort()
-    for link in links:
-        # If is image, download
-        if is_image_link(link):
-            print('Scraping single image', link)
-            scrape_single_image(link, out_folder, timeout)
-        elif depth != 0:
-            print('Scraping non-image link', link)
-
-            try:
-                count += int(get_images_from_url(link, out_folder, timeout, depth - 1))
-            except Exception as e:
-                print(e)
-
-    return count
-
 class ImageScraper:
-    def __init__(self, link='https://www.google.com/', output_folder='', timeout=1):
+    def __init__(self, link='https://www.google.com/', output_folder='', timeout=0.5):
         self.link, self.output_folder, self.timeout = link, output_folder, timeout
 
         print(os.getcwd())
@@ -102,9 +59,48 @@ class ImageScraper:
         self._page1()
         self.root.mainloop()
     
-    def scrape(self, depth=0):
+    def scrape(self, url, out_folder, timeout, depth=0):
         print(self.output_folder)
-        self.counter = get_images_from_url(self.link, self.output_folder, self.timeout, depth)
+        
+        # Failsafe
+        if is_image_link(url):
+            print('Link is image link.')
+            scrape_single_image(url, out_folder, timeout)
+            return
+
+        # Get url html
+        try:
+            html = r.get(url, stream=True, timeout=timeout).text
+        except r.exceptions.RequestException:
+            print('Connection failed.')
+            return
+
+        # Find all links within html
+        print('Searching for links...')
+        links = re.findall(r'(?<==")(?:https?:)?//[^ ]*?(?=")', html)
+        links += re.findall(r'(?<=src=")[^"]+', html)
+
+        print('Found: ', links)
+
+        # Test each link for image-hood
+        links.sort()
+        for link in links:
+            # Fix link if needed
+            if link[:4].lower() != 'http':
+                link = re.search(r'https?://[^/\\]+(/|\\)?', url).group() + link
+
+            # If is image, download
+            if is_image_link(link):
+                print('Scraping single image', link)
+                scrape_single_image(link, out_folder, timeout)
+            elif depth != 0:
+                print('Scraping non-image link', link)
+
+                try:
+                    self.scrape(link, out_folder, timeout, depth - 1)
+                except Exception as e:
+                    print(e)
+
         return
     
     def clear(self):
@@ -121,7 +117,7 @@ class ImageScraper:
         depth = int(depth_textbox.get('1.0', tk.END))
         self._page2()
 
-        self.scrape(depth=depth)
+        self.scrape(self.link, self.output_folder, self.timeout, depth)
 
         self._page1()
         return
