@@ -1,6 +1,9 @@
 import requests as r
 import regex as re
+import tkinter as tk
+from tkinter import filedialog as fd
 from shutil import copyfileobj
+import os
 
 image_formats = ('image/png', 'image/jpg', 'image/jpeg')
 def is_image_link(url: str, timeout=1) -> bool:
@@ -33,7 +36,7 @@ def scrape_single_image(url: str, out_folder: str, timeout) -> None:
     if '.' not in name:
         name += '.jpg'
 
-    with open(out_folder + '/' + name, 'wb') as file:
+    with open(out_folder + name, 'wb') as file:
         copyfileobj(image.raw, file)
 
 def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
@@ -59,6 +62,7 @@ def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
     print('Found: ', links)
 
     # Test each link for image-hood
+    count = len(links)
     links.sort()
     for link in links:
         # If is image, download
@@ -67,10 +71,64 @@ def get_images_from_url(url: str, out_folder: str, timeout, depth) -> None:
             scrape_single_image(link, out_folder, timeout)
         elif depth != 0:
             print('Scraping non-image link', link)
-            get_images_from_url(link, out_folder, timeout, depth - 1)
+            count += int(get_images_from_url(link, out_folder, timeout, depth - 1))
 
-    return
+    return count
 
 class ImageScraper:
-    def __init__(self, link, output_folder, timeout=1, depth=0):
-        self.link, self.output_folder, self.timeout, self.depth = link, output_folder, timeout, depth
+    def __init__(self, link='https://www.google.com/', output_folder='', timeout=1):
+        self.link, self.output_folder, self.timeout = link, output_folder, timeout
+
+        if output_folder == '':
+            if not os.path.exists('output'):
+                os.makedirs('output')
+            self.output_folder = 'output/'
+
+        self.counter = 0
+        self.root = tk.Tk()
+        self.root.title('Image Scraper')
+        self._page1()
+        self.root.mainloop()
+    
+    def scrape(self, depth=0):
+        self.counter = get_images_from_url(self.link, self.output_folder, self.timeout, depth)
+        return
+    
+    def clear(self):
+        for child in self.root.winfo_children():
+            child.destroy() # metal line
+        return
+    
+    def _select_folder(self):
+        self.output_folder = fd.askdirectory()
+        return
+    
+    def _go(self, link_textbox: tk.Text, depth_textbox: tk.Text):
+        self.link = link_textbox.get('1.0', tk.END)
+        depth = int(depth_textbox.get('1.0', tk.END))
+        self.scrape(depth=depth)
+
+        self._page1()
+        return
+
+    def _page1(self):
+        self.clear()
+
+        tk.Label(self.root, text='Python Image Scraping Script\n').pack()
+        
+        tk.Label(self.root, text='Number scraped: ' + str(self.counter)).pack()
+
+        tk.Label(self.root, text='URL:').pack()
+        link_textbox = tk.Text(self.root, width=30, height=1)
+        link_textbox.pack()
+        
+        tk.Label(self.root, text='Depth:').pack()
+        depth_textbox = tk.Text(self.root, width=30, height=1)
+        depth_textbox.pack()
+
+        tk.Button(self.root, text='Select output folder', command=self._select_folder).pack()
+        tk.Button(self.root, text='Go', command=lambda: self._go(link_textbox, depth_textbox)).pack()
+
+        tk.Button(self.root, text='Quit', command=self.root.destroy).pack()
+
+        return
